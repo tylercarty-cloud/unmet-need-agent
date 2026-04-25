@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Credentials
+backend/credentials/*.json
+!backend/credentials/.gitkeep
+
+# Node
+node_modules/
+dist/
+.vite/
+.env.local
+.env.*.local
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
