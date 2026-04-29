@@ -10,6 +10,9 @@ venv/
 backend/credentials/*.json
 !backend/credentials/.gitkeep
 
+# Slack publish state (local dedup cache)
+backend/data/
+
 # Node
 node_modules/
 dist/

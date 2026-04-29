@@ -3,6 +3,7 @@ import { AlertCircle } from "lucide-react";
 import StatsHeader from "@/components/StatsHeader";
 import BucketChart from "@/components/BucketChart";
 import BucketGrid from "@/components/BucketGrid";
+import DiagnosticsPanel from "@/components/DiagnosticsPanel";
 import LoadingState from "@/components/LoadingState";
 import Toolbar from "@/components/Toolbar";
 import { useBuckets } from "@/hooks/useBuckets";
@@ -77,6 +78,8 @@ export default function App() {
           loading={loading}
           onRefresh={refresh}
         />
+
+        <DiagnosticsPanel />
 
         {error && (
           <div className="mt-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">

@@ -1,13 +1,21 @@
 # Roadmap Comparison
 
-Classifies each HCP unmet need against the product roadmap (Jira Ideas) using Claude, then outputs a structured coverage report and join table.
+Classifies each HCP unmet need against the product roadmap (Jira Ideas) using
+Claude, then outputs a structured coverage report and join table.
 
-## Inputs
+This module shares its prompt (`prompt.md`) and classification logic with the
+live `services/alignment.py` service — both call the same `classify_requests`
+kernel, so the dashboard view and the offline report stay in lockstep.
 
-| File | Description |
-|------|-------------|
-| `backend/data/unmet_needs_master.csv` | 32 HCP unmet needs captured from field channels |
-| `backend/data/roadmap.csv` | Jira export — filtered to `Issue Type = Idea` |
+## Inputs (live, no separate CSVs needed)
+
+| Source | Loaded via |
+|--------|-----------|
+| Google Sheet of HCP feedback | `services.sheets.fetch_hcp_requests` |
+| Slack channel (optional) | `services.slack.fetch_slack_requests` |
+| Roadmap markdown | `services.roadmap.load_roadmap` (`backend/roadmap.md`) |
+
+The same `backend/.env` the API uses configures all three sources.
 
 ## Outputs
 
@@ -21,10 +29,17 @@ Classifies each HCP unmet need against the product roadmap (Jira Ideas) using Cl
 From `backend/`:
 
 ```bash
-python3 -m analysis.roadmap_comparison.compare
+python -m analysis.roadmap_comparison.compare           # Sheet + Slack
+python -m analysis.roadmap_comparison.compare --no-slack  # Sheet only
 ```
 
-Requires `ANTHROPIC_API_KEY` in `backend/.env`. Uses whatever model is set in `ANTHROPIC_MODEL` (default: `claude-opus-4-5`).
+Requires `ANTHROPIC_API_KEY`, `GOOGLE_SHEETS_ID`, and `GOOGLE_SERVICE_ACCOUNT_JSON`
+in `backend/.env`. Slack ingestion is auto-enabled if `SLACK_BOT_TOKEN` and
+`SLACK_CHANNEL_ID` are set.
+
+Uses whatever model is set in `ANTHROPIC_MODEL` (default: `claude-opus-4-5`).
+The classification prompt enables Anthropic prompt caching on the roadmap
+block, so repeated runs within a 5-minute window are cheap.
 
 ## Classifications
 
@@ -45,3 +60,5 @@ Requires `ANTHROPIC_API_KEY` in `backend/.env`. Uses whatever model is set in `A
 ## Prompt
 
 See [`prompt.md`](prompt.md) for the full classification prompt sent to Claude.
+This file is also loaded at runtime by `backend/services/alignment.py`, so
+edits here flow through to the dashboard automatically.

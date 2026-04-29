@@ -25,6 +25,19 @@ class Settings(BaseSettings):
         alias="GOOGLE_SERVICE_ACCOUNT_JSON",
     )
 
+    slack_bot_token: str = Field(default="", alias="SLACK_BOT_TOKEN")
+    slack_channel_id: str = Field(default="", alias="SLACK_CHANNEL_ID")
+    slack_message_limit: int = Field(default=1000, alias="SLACK_MESSAGE_LIMIT")
+    slack_publish_enabled: bool = Field(default=True, alias="SLACK_PUBLISH_ENABLED")
+    slack_publish_state_path: str = Field(
+        default="./data/posted_requests.json",
+        alias="SLACK_PUBLISH_STATE_PATH",
+    )
+    dashboard_url: str = Field(default="http://localhost:5173", alias="DASHBOARD_URL")
+
+    roadmap_path: str = Field(default="./roadmap.md", alias="ROADMAP_PATH")
+    alignment_enabled: bool = Field(default=True, alias="ALIGNMENT_ENABLED")
+
     cors_origins: Annotated[List[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:5173"],
         alias="CORS_ORIGINS",

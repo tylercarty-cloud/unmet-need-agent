@@ -24,7 +24,9 @@ SYSTEM_PROMPT = (
     "- Each request must be assigned to exactly one bucket (pick the best fit)\n"
     "- Bucket names should be concise (2-4 words), title-cased, and "
     "descriptive of the underlying need\n"
-    "- Preserve ALL original metadata for each request in the output\n"
+    "- Preserve ALL original metadata for each request in the output, "
+    "including the opaque `request_id` and `slack_ts` fields — copy them "
+    "through verbatim\n"
     "- Aim for 4-12 buckets depending on data volume — don't over-fragment "
     "or over-consolidate\n"
     "- If a request doesn't fit a clear theme, place it in an \"Other\" "
@@ -48,7 +50,9 @@ JSON_SCHEMA_HINT = """{
           "date_time": "string",
           "slack_link": "string",
           "slack_channel": "string",
-          "pulse": "string"
+          "pulse": "string",
+          "request_id": "string (copy verbatim from input)",
+          "slack_ts": "string (copy verbatim from input)"
         }
       ]
     }
@@ -96,6 +100,14 @@ def _coerce_response(parsed: dict, originals: List[HCPRequest]) -> BucketsRespon
     raw_buckets = parsed.get("buckets") or []
     buckets: List[Bucket] = []
 
+    # Build a lookup of originals by request_id and by content fingerprint so
+    # we can restore request_id/slack_ts even if Claude drops them.
+    by_id: dict[str, HCPRequest] = {o.request_id: o for o in originals if o.request_id}
+    by_fingerprint: dict[str, HCPRequest] = {
+        f"{o.hcp_response}|{o.date_time or ''}|{o.first_name}|{o.last_name}|{o.npi}": o
+        for o in originals
+    }
+
     for raw in raw_buckets:
         if not isinstance(raw, dict):
             continue
@@ -105,10 +117,25 @@ def _coerce_response(parsed: dict, originals: List[HCPRequest]) -> BucketsRespon
             if not isinstance(r, dict):
                 continue
             try:
-                coerced_requests.append(HCPRequest(**r))
+                coerced = HCPRequest(**r)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Dropping malformed bucketed request: %s", exc)
                 continue
+
+            original = by_id.get(coerced.request_id) if coerced.request_id else None
+            if original is None:
+                fp = (
+                    f"{coerced.hcp_response}|{coerced.date_time or ''}|"
+                    f"{coerced.first_name}|{coerced.last_name}|{coerced.npi}"
+                )
+                original = by_fingerprint.get(fp)
+            if original is not None:
+                if not coerced.request_id:
+                    coerced.request_id = original.request_id
+                if not coerced.slack_ts:
+                    coerced.slack_ts = original.slack_ts
+
+            coerced_requests.append(coerced)
 
         bucket = Bucket(
             bucket_name=str(raw.get("bucket_name") or "Other").strip() or "Other",

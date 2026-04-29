@@ -1,6 +1,7 @@
 """Google Sheets service: reads the HCP feedback sheet and normalizes rows."""
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 from typing import Dict, List
@@ -10,6 +11,16 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from models.schemas import HCPRequest
+
+
+def _sheet_request_id(record: dict) -> str:
+    """Stable hash so the same Sheet row gets the same request_id every run."""
+    parts = "|".join(
+        (record.get(k) or "").strip()
+        for k in ("hcp_response", "date_time", "first_name", "last_name", "npi")
+    )
+    digest = hashlib.sha1(parts.encode("utf-8")).hexdigest()[:16]
+    return f"sheet:{digest}"
 
 logger = logging.getLogger(__name__)
 
@@ -98,18 +109,41 @@ def fetch_hcp_requests(
             "'Link to Slack post', 'Slack Channel Name', 'Pulse'."
         )
 
+    # Only the str-typed fields on HCPRequest can be seeded from sheet cells.
+    # Non-string fields (e.g. roadmap_alignments: list, unaligned: bool) must
+    # use their pydantic defaults, otherwise pre-filling them with "" causes
+    # validation to reject every row.
+    _STRING_FIELDS = {
+        "hcp_response",
+        "first_name",
+        "last_name",
+        "npi",
+        "date_time",
+        "slack_link",
+        "slack_channel",
+        "pulse",
+        "request_id",
+        "slack_ts",
+        "roadmap_classification",
+        "gap_category",
+        "confidence",
+        "roadmap_reasoning",
+    }
+
     requests: List[HCPRequest] = []
     for row in values[1:]:
         if not any(cell.strip() for cell in row if isinstance(cell, str)):
             continue
 
-        record = {field: "" for field in HCPRequest.model_fields}
+        record: Dict[str, str] = {field: "" for field in _STRING_FIELDS}
         for idx, key in column_map.items():
             cell = row[idx] if idx < len(row) else ""
             record[key] = (cell or "").strip() if isinstance(cell, str) else str(cell)
 
         if not record.get("hcp_response"):
             continue
+
+        record["request_id"] = _sheet_request_id(record)
 
         try:
             requests.append(HCPRequest(**record))
